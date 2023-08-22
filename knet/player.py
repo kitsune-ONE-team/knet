@@ -3,7 +3,7 @@ from .snapshot import Snapshot
 
 class Player:
     """
-    Playback system which plays the queued snapshots
+    Playback system which plays the queued snapshots.
     """
     _snapshot_queue: list[Snapshot]
     _tick_rate: int  # in Hz
@@ -18,7 +18,7 @@ class Player:
 
     def __init__(self, tick_rate: int):
         """
-        Create a new object.
+        Create a new playback system.
 
         :param tick_rate: tick rate in Hz, ex.: 20Hz
         :type tick_rate: int
@@ -61,6 +61,9 @@ class Player:
     def get_tick_id(self) -> int:
         """
         Get tick ID of the next snapshot.
+
+        :returns: tick ID
+        :rtype: int
         """
         if self._next_snapshot:
             return self._next_snapshot.get_tick_id()
@@ -69,18 +72,27 @@ class Player:
     def get_tick_time(self) -> float:
         """
         Get time of the next tick in seconds.
+
+        :returns: time in seconds
+        :rtype: float
         """
         return self._tick_time / 1000
 
     def get_real_time(self) -> float:
         """
         Get real time in seconds.
+
+        :returns: time in seconds
+        :rtype: float
         """
         return self._real_time / 1000
 
     def get_interpolation_factor(self) -> float:
         """
         Get interpolation factor between previos and next snapshot.
+
+        :returns: interpolcation factor from 0.0 to 1.0
+        :rtype: float
         """
         if not self._prev_snapshot:
             return 1.0
@@ -119,7 +131,7 @@ class Player:
         Pull snapshot with lowest tick ID.
 
         :returns: snapshot
-        :rtype: :class:`~knet.snapshot.Snapshot`
+        :rtype: :class:`knet.snapshot.Snapshot`
         """
         if self._snapshot_queue:
             return self._snapshot_queue.pop(-1)
