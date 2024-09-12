@@ -1,17 +1,17 @@
-from .snapshot import Snapshot
+from .snapshot import WorldSnapshot
 
 
-class Player:
+class PlaybackSystem:
     """
     Playback system which plays the queued snapshots.
     """
-    _snapshot_queue: list[Snapshot]
+    _snapshot_queue: list[WorldSnapshot]
     _tick_rate: int  # in Hz
     _tick_duration: float  # in ms
 
-    _next_snapshot: Snapshot | None
-    _prev_snapshot: Snapshot | None
-    _intr_snapshot: Snapshot | None
+    _next_snapshot: WorldSnapshot | None
+    _prev_snapshot: WorldSnapshot | None
+    _intr_snapshot: WorldSnapshot | None
 
     _tick_time: float  # in ms
     _real_time: float  # in ms
@@ -35,14 +35,14 @@ class Player:
         self._real_time = 0
 
     def __str__(self) -> str:
-        return f'Player {self._tick_rate}Hz'
+        return f'<{self.__class__.__name__} {self._tick_rate}Hz>'
 
-    def feed_snapshot(self, snapshot: Snapshot):
+    def feed_snapshot(self, snapshot: WorldSnapshot):
         """
         Feed snapshot into queue.
 
         :param snapshot: snapshot
-        :type snapshot: :class:`knet.snapshot.Snapshot`
+        :type snapshot: :class:`kitsunet.snapshot.WorldSnapshot`
         """
         if snapshot.get_tick_id() <= self.get_tick_id():  # outdated
             return
@@ -57,6 +57,15 @@ class Player:
 
         else:  # did not matched, add anyway
             self._snapshot_queue.append(snapshot)
+
+    def get_snapshot_queue_size(self) -> int:
+        """
+        Get snapshot queue size.
+
+        :returns: number of snapshots in queue
+        :rtype: int
+        """
+        return len(self._snapshot_queue)
 
     def get_tick_id(self) -> int:
         """
@@ -108,41 +117,41 @@ class Player:
         else:
             return (last_factor + tick_delta - 1) / tick_delta
 
-    def get_snapshot_queue_size(self) -> int:
-        """
-        Get snapshot queue size.
-
-        :returns: number of snapshots in queue
-        :rtype: int
-        """
-        return len(self._snapshot_queue)
-
-    def get_interpolated_snapshot(self) -> Snapshot | None:
+    def get_interpolated_snapshot(self) -> WorldSnapshot | None:
         """
         Get a snapshot which is a result of interpolation.
 
         :returns: snapshot
-        :rtype: :class:`knet.snapshot.Snapshot`
+        :rtype: :class:`kitsunet.snapshot.Snapshot`
         """
         return self._intr_snapshot
 
-    def _pull_snapshot(self) -> Snapshot | None:
+    def _pull_snapshot(self) -> WorldSnapshot | None:
         """
         Pull snapshot with lowest tick ID.
 
         :returns: snapshot
-        :rtype: :class:`knet.snapshot.Snapshot`
+        :rtype: :class:`kitsunet.snapshot.WorldSnapshot`
         """
         if self._snapshot_queue:
             return self._snapshot_queue.pop(-1)
 
-    def _do_step(self):
-        snapshot: Snapshot = self._pull_snapshot()
-        if not snapshot:
+    def _drop_snapshots(self):
+        """Clears snapshots queue."""
+        while self.get_snapshot_queue_size() > 1:
+            self._pull_snapshot()
+
+    def _do_step(self) -> bool:
+        """
+        Do a single tick.
+        Try to switch to the next snapshot.
+        """
+        wsnapshot: WorldSnapshot = self._pull_snapshot()
+        if not wsnapshot:
             return False
 
         self._prev_snapshot = self._next_snapshot
-        self._next_snapshot = snapshot
+        self._next_snapshot = wsnapshot
         return True
 
     def update(self, dt: float):
@@ -158,15 +167,16 @@ class Player:
                 self._tick_time += self._tick_duration
                 self._real_time = max(self._real_time, self._tick_time)
             else:
-                break
+                break  # step failed - stop time
         else:
             self._real_time = real_time_new
 
+        # interpolate state
         factor: float = self.get_interpolation_factor()
         if factor == 1.0:
             self._intr_snapshot = self._next_snapshot
         else:
-            self._intr_snapshot = self._prev_snapshot.lerp(self._next_snapshot, factor)
+            self._intr_snapshot = self._prev_snapshot.interpolate(self._next_snapshot, factor)
 
-        while self.get_snapshot_queue_size() > 1:
-            self._pull_snapshot()
+        # clear snapshots queue
+        self._drop_snapshots()
